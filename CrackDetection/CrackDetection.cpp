@@ -1,0 +1,14 @@
+
+class CrackDetection
+{
+	CrackDetection()
+	{
+
+	}
+
+	~CrackDetection()
+	{
+
+	}
+
+};
