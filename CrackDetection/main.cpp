@@ -6,7 +6,7 @@
 #include <list>
 #include <time.h> 
 #include <io.h>
-#include<math.h>
+#include <math.h>
 
 using namespace cv;
 using namespace std;
@@ -14,7 +14,6 @@ RNG rng(123456);
 
 void location(Mat &srcImg, Mat &binImg)
 {
-
 	vector< vector<Point> > contours;
 	if (binImg.data)
 	{
@@ -29,15 +28,37 @@ void location(Mat &srcImg, Mat &binImg)
 			maxRect = boundingRect(contours[i]);
 			rectangle(srcImg, maxRect, cv::Scalar(0, 0, 255));
 		}
-
 	}
+}
+
+double CrackAnalysis(Mat &srcImg, Mat &binImg)
+{
+	vector< vector<Point> > cracksList;
+	int cracksProportion = 0, carcksAreaSum = 0;
+	if (binImg.data)
+	{
+		findContours(binImg, cracksList, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_NONE);
+	}
+
+	if (cracksList.size() > 0)
+	{
+		drawContours(srcImg, cracksList, -1, Scalar(255,0,0), CV_FILLED, 8, vector<Vec4i>(), 2, Point());
+	}
+
+	vector< vector<Point> >::iterator it;
+	for (it = cracksList.begin(); it != cracksList.end(); it++)
+	{
+		carcksAreaSum += contourArea(*it);
+	}
+
+	cracksProportion = carcksAreaSum / (srcImg.rows*srcImg.cols);
+	return cracksProportion;
 }
 
 static inline bool ContoursSortByArea(vector<cv::Point> contour1, vector<cv::Point> contour2)
 {
 	return (contourArea(contour1) > contourArea(contour2));
 }
-
 
 int GetContourSpan( vector<Point> contours)
 {
@@ -236,6 +257,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		numCountours = FilterContours(imgEdgeBinary, imgEdgeBinary, false);
 		imwrite(".\\img_crackBinary\\" + *it, imgEdgeBinary);
 
+
 		int iteration = 0;
 		for(iteration = 0; numCountours >= 1; iteration++)
 		{
@@ -259,10 +281,10 @@ int _tmain(int argc, _TCHAR* argv[])
 			{
 				break;
 			}
-
 		} 
+		
 		numCountours = FilterContours(imgEdgeBinary, imgEdgeBinary, true, numCountours, 2);
-		location(imgRaw, imgEdgeBinary);
+		CrackAnalysis(imgRaw, imgEdgeBinary);
 		imwrite(".\\img_crackDetection\\" + *it, imgRaw);
 		
 	}
