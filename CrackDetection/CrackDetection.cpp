@@ -1,8 +1,32 @@
 #include"CrackDetection.h"
 
+static inline int GetContourSpan(vector<Point> &contours)
+{
+	int minX = 0x7FFFFFFF, minY = 0x7FFFFFFF;
+	int maxX = 0, maxY = 0;
+	for (vector<Point>::iterator it = contours.begin(); it != contours.end(); it++)
+	{
+		if (it->x > maxX)
+			maxX = it->x;
+		if (it->y > maxY)
+			maxY = it->y;
+		if (it->x < minX)
+			minX = it->x;
+		if (it->y < minY)
+			minY = it->y;
+	}
+	return maxY - minY > maxX - minX ? maxY - minY : maxX - minX;
+}
+
+
 static inline bool ContoursSortByArea(vector<cv::Point> &contour1, vector<cv::Point> &contour2)
 {
 	return (contourArea(contour1) > contourArea(contour2));
+}
+
+static inline bool ContoursSortBySpan(vector<cv::Point> &contour1, vector<cv::Point> &contour2)
+{
+	return (GetContourSpan(contour1) > GetContourSpan(contour2));
 }
 
 void CrackDetection::CrackLocate(Mat &srcImg, Mat &binImg)
@@ -78,23 +102,6 @@ void CrackDetection::GetHist(Mat& srcImg, Mat& dstImg)
 	dstImg = hist_img;
 }
 
-int CrackDetection::GetContourSpan(vector<Point> &contours)
-{
-	int minX = 0x7FFFFFFF, minY = 0x7FFFFFFF;
-	int maxX = 0, maxY = 0;
-	for (vector<Point>::iterator it = contours.begin(); it != contours.end(); it++)
-	{
-		if (it->x > maxX)
-			maxX = it->x;
-		if (it->y > maxY)
-			maxY = it->y;
-		if (it->x < minX)
-			minX = it->x;
-		if (it->y < minY)
-			minY = it->y;
-	}
-	return maxY - minY > maxX - minX ? maxY - minY : maxX - minX;
-}
 
 int CrackDetection::FilterContours(Mat &imgSrc, Mat &imgDst, bool isSpecify = true, int numContours = 100, double ratioThreshold = 2)
 {
@@ -111,16 +118,15 @@ int CrackDetection::FilterContours(Mat &imgSrc, Mat &imgDst, bool isSpecify = tr
 	{
 		return 0;
 	}
-	double thresholdArea = 0;
-	double thresholdPARatio = ratioThreshold;
 
+	double thresholdPARatio = ratioThreshold;
+	double thresholdArea = 0, thresholdSpan = 0;
 	sort(contoursAll.begin(), contoursAll.end(), ContoursSortByArea);
 
 	double tmpSpan = GetContourSpan(contoursAll[0]);
 	double tmpArea = contourArea(contoursAll[0]);
 	//if the biggest shadow has the crack features
-	if (tmpSpan > (imgSrc.cols + imgSrc.rows)*0.01
-		&& (tmpSpan / 2)*(tmpSpan / 2)*3.14 / tmpArea > 2)
+	if (tmpSpan > (imgSrc.cols + imgSrc.rows)*0.01)
 	{
 		//isSpecify=false: so we just filter the img with no specifications
 		if (false == isSpecify)
@@ -136,11 +142,20 @@ int CrackDetection::FilterContours(Mat &imgSrc, Mat &imgDst, bool isSpecify = tr
 		}
 		else
 		{
+
+			thresholdArea += contourArea(contoursAll[0]);
+
+			sort(contoursAll.begin(), contoursAll.end(), ContoursSortBySpan);
+
+			thresholdSpan += GetContourSpan(contoursAll[0]);
+
+
 			for (int i = 0; i < contoursAll.size() && i < numContours; i++)
 			{
 				tmpArea = contourArea(contoursAll[i]);
 				tmpSpan = GetContourSpan(contoursAll[i]);
-				if ((tmpSpan / 2)*(tmpSpan / 2)*3.14 / tmpArea > ratioThreshold)
+				if ((tmpSpan / 2)*(tmpSpan / 2)*3.14 / tmpArea > ratioThreshold
+					&& tmpSpan / thresholdSpan > 0.1 && tmpArea /thresholdArea > 0.01)
 				{
 					//删除面积小于设定值的轮廓  
 					contoursToKeep.push_back(contoursAll[i]);
@@ -155,7 +170,7 @@ int CrackDetection::FilterContours(Mat &imgSrc, Mat &imgDst, bool isSpecify = tr
 	return contoursToKeep.size();
 }
 
-CrackDetection::CrackDetection(Mat &imgRaw)
+CrackDetection::CrackDetection(Mat &imgRaw, string &filename)
 {
 	if (NULL == imgRaw.data)
 		return;
@@ -165,12 +180,19 @@ CrackDetection::CrackDetection(Mat &imgRaw)
 	Mat imgCracksGray;
 	cvtColor(_imgRaw, imgCracksGray, CV_RGB2GRAY);
 	Mat imgCracksFiltedGray;
-	bilateralFilter(imgCracksGray, imgCracksFiltedGray, 3, 15, 15);
 
-	//imwrite(".\\img_edgeEnhance\\" + imgGray., imgEdgeEnhanceGray);
-	//Mat imgHist;
-	//GetHist(imgEdgeEnhanceGray, imgHist);
-	//imwrite(".\\img_hist\\" + *it, imgHist);
+
+	for (int i = 1; i < 9; i = i + 2)
+	{
+		bilateralFilter(imgCracksGray, imgCracksFiltedGray, i, i * 2, i / 2);
+	}
+
+	//bilateralFilter(imgCracksGray, imgCracksFiltedGray, 3, 15, 15);
+
+	imwrite(".\\img_edgeEnhance\\" + filename, imgCracksFiltedGray);
+	Mat imgHist;
+	GetHist(imgCracksGray, imgHist);
+	imwrite(".\\img_hist\\" + filename, imgHist);
 
 	int blockSize = 151;
 	int constValue = 15; 
@@ -180,11 +202,11 @@ CrackDetection::CrackDetection(Mat &imgRaw)
 	Mat imgCracksBinary;
 	adaptiveThreshold(imgCracksFiltedGray, imgCracksBinary, 255, CV_ADAPTIVE_THRESH_GAUSSIAN_C, CV_THRESH_BINARY_INV, blockSize, constValue);
 		
-	//imwrite(".\\img_adaptiveThreshold\\" + *it, imgEdgeBinary);
+	imwrite(".\\img_adaptiveThreshold\\" + filename, imgCracksBinary);
 
 	numCountours = FilterContours(imgCracksBinary, imgCracksBinary, false);
 		
-	//imwrite(".\\img_crackBinary\\" + *it, imgEdgeBinary);
+	imwrite(".\\img_crackFilter\\" + filename, imgCracksBinary);
 
 	int iteration = 0;
 	for (iteration = 0; numCountours >= 1; iteration++)
@@ -205,7 +227,7 @@ CrackDetection::CrackDetection(Mat &imgRaw)
 		}
 		numCountours = FilterContours(imgCracksBinary, imgCracksBinary, true, numCountours, 0);
 
-		if (numCountours < iteration)
+		if (numCountours < iteration || iteration > 4)
 		{
 			break;
 		}
@@ -213,9 +235,11 @@ CrackDetection::CrackDetection(Mat &imgRaw)
 
 	numCountours = FilterContours(imgCracksBinary, imgCracksBinary, true, numCountours, 2);
 
+	imwrite(".\\img_crackBinary\\" + filename, imgCracksBinary);
+
 	imgRaw.copyTo(_imgCrackHighlight);
 	_cracksaScale = CrackAnalysis(_imgCrackHighlight, imgCracksBinary);
-	//imwrite(".\\img_crackDetection\\" + *it, imgRaw);
+
 }
 
 CrackDetection::~CrackDetection()

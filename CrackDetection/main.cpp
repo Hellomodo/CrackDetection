@@ -35,7 +35,7 @@ int main(int argc, char* argv[])
 	for (list<string>::iterator it = filelist.begin(); it != filelist.end(); it++)
 	{
 		Mat imgRaw = imread(".\\img_samples\\" + *it);
-		CrackDetection crackInfo(imgRaw);
+		CrackDetection crackInfo(imgRaw,*it);
 		imwrite(".\\img_crackDetection\\" + *it, crackInfo.GetImgCrackHighlight());
 		cout << *it << "----->" << crackInfo.GetCracksScale() << endl;
 	}

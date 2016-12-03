@@ -10,7 +10,7 @@ class CrackDetection
 
 
 public:
-	CrackDetection(Mat& imgRaw);
+	CrackDetection(Mat& imgRaw,string &filename);
 
 	~CrackDetection();
 
@@ -23,9 +23,9 @@ private:
 
 	Mat _imgCrackHighlight;
 
-	float _cracksaScale = 0;
+	string _filename;
 
-	int GetContourSpan(vector<Point> &contours);
+	float _cracksaScale = 0;
 
 	int FilterContours(Mat &imgSrc, Mat &imgDst, bool isSpecify, int numContours, double ratioThreshold );
 
